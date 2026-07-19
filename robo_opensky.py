@@ -1,9 +1,11 @@
 """
 Robô de busca automática - OpenSky (Smiles/GOL) -> WhatsApp (Z-API)
 =====================================================================
-RASCUNHO / PRIMEIRA VERSÃO - feito com base em prints de tela, sem ver
-o código real do site. Alguns detalhes (marcados com "AJUSTAR") podem
-precisar de pequeno ajuste ao testar de verdade.
+Campos de origem/destino e botão de busca já foram conferidos com o HTML
+real do site (via DevTools). O ponto que ainda falta confirmar é o nome
+exato do endpoint de rede que devolve os resultados da garimpagem
+(hoje o script espera algo com "scan-spreadsheet" na URL — ver função
+buscar_precos).
 
 O QUE ESSE ROBÔ FAZ (na ordem):
 1. Abre o site do OpenSky
@@ -89,13 +91,14 @@ def buscar_precos(page, origem, destinos):
 
     page.on("response", capturar_resposta)
 
-    # AJUSTAR: os seletores abaixo usam o texto que aparece nos campos
-    # (placeholder). Se o site mudar o texto de exemplo, isso vai
-    # precisar ser atualizado.
-    page.get_by_placeholder("GYN").fill(origem)
-    page.locator("input[placeholder*='MCZ']").fill(", ".join(destinos))
+    # Seletores confirmados via DevTools (HTML real do formulário #skyForm):
+    #   <input type="text" id="origin" ...>
+    #   <input type="text" id="destinations" ...>
+    #   <button type="submit" ...>⚡ INICIAR GARIMPAGEM</button>
+    page.locator("#origin").fill(origem)
+    page.locator("#destinations").fill(", ".join(destinos))
 
-    page.get_by_role("button", name="INICIAR GARIMPAGEM").click()
+    page.locator("#skyForm button[type='submit']").click()
 
     # espera a resposta chegar (até 30 segundos)
     for _ in range(30):
