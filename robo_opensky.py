@@ -1,11 +1,9 @@
 """
 Robô de busca automática - OpenSky (Smiles/GOL) -> WhatsApp (Z-API)
 =====================================================================
-Campos de origem/destino e botão de busca já foram conferidos com o HTML
-real do site (via DevTools). O ponto que ainda falta confirmar é o nome
-exato do endpoint de rede que devolve os resultados da garimpagem
-(hoje o script espera algo com "scan-spreadsheet" na URL — ver função
-buscar_precos).
+Seletores dos campos, botão de busca e o endpoint de rede
+("scan-spreadsheet") foram todos conferidos com o site real (via
+DevTools). Pronto pra testar de ponta a ponta.
 
 O QUE ESSE ROBÔ FAZ (na ordem):
 1. Abre o site do OpenSky
