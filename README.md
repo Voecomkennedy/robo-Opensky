@@ -5,12 +5,19 @@ oportunidades encontradas para um grupo de WhatsApp via Z-API.
 
 ## O que ele faz
 
-1. Abre o site do OpenSky.
-2. Se aparecer a tela "ACESSO RESTRITO", digita a chave e desbloqueia.
-3. Busca a ida e a volta juntas numa única busca por lote (o próprio site já devolve os dois sentidos).
-4. Combina a ida e a volta mais baratas dentro do teto de milhas combinado (ida + volta somadas), priorizando os itinerários prontos do site — que já vêm com link direto de reserva quando disponíveis.
-5. Monta uma mensagem de WhatsApp.
-6. Envia pro grupo via Z-API.
+1. Abre o site do OpenSky e faz login uma única vez.
+2. Fica rodando sozinho em loop, dentro do horário comercial: a cada ciclo, passa por cada região do Brasil (Centro-Oeste, Sudeste, Nordeste, Sul, Norte) e busca todas as rotas configuradas daquela região — ida e volta juntas, numa única busca por lote (o próprio site já devolve os dois sentidos).
+3. Combina a ida e a volta mais baratas dentro do teto de milhas combinado (ida + volta somadas), priorizando os itinerários prontos do site — que já vêm com link direto de reserva quando disponíveis.
+4. Monta uma mensagem de WhatsApp com as oportunidades da região.
+5. Envia pro grupo de WhatsApp daquela região via Z-API.
+6. Espera o intervalo configurado e repete o ciclo, até você parar o robô (Ctrl+C) ou o horário comercial acabar.
+
+### Ajustando regiões, rotas e agendamento
+
+No topo de `robo_opensky.py`:
+
+- `REGIOES`: um dicionário por região, cada uma com o `grupo_id` (variável de ambiente do grupo de WhatsApp) e a lista `rotas` de `(origem, [destinos])`. Pode colocar quantos destinos quiser por origem — o robô divide sozinho em lotes de até 5 (limite do site).
+- `INTERVALO_MINUTOS`, `HORA_INICIO`, `HORA_FIM`: controlam de quanto em quanto tempo o ciclo se repete e em qual janela do dia o robô roda (fora dela ele só espera).
 
 ## Como usar
 

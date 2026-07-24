@@ -6,15 +6,19 @@ Seletores dos campos, botão de busca e o endpoint de rede
 DevTools). Pronto pra testar de ponta a ponta.
 
 O QUE ESSE ROBÔ FAZ (na ordem):
-1. Abre o site do OpenSky
-2. Se aparecer a tela "ACESSO RESTRITO", digita a chave e desbloqueia
-3. Busca a ida e a volta juntas numa única busca por lote (o próprio
+1. Abre o site do OpenSky e faz login uma única vez
+2. Fica rodando sozinho em loop, dentro do horário comercial: a cada
+   ciclo, passa por cada REGIÃO do Brasil (Centro-Oeste, Sudeste,
+   Nordeste, Sul, Norte) e busca todas as rotas configuradas daquela
+   região (ida e volta juntas, numa única busca por lote — o próprio
    site já devolve os dois sentidos)
-4. Combina as datas de ida e volta mais baratas dentro do teto de milhas
+3. Combina as datas de ida e volta mais baratas dentro do teto de milhas
    combinado que você definir (ida + volta somadas) — priorizando os
    itinerários prontos do site, que já vêm com link direto de reserva
-5. Monta uma mensagem de WhatsApp
-6. Envia pro grupo via Z-API
+4. Monta uma mensagem de WhatsApp com as oportunidades da região
+5. Envia pro grupo de WhatsApp DAQUELA região via Z-API
+6. Espera o intervalo configurado e repete o ciclo, até você parar o
+   robô (Ctrl+C) ou o horário comercial acabar
 
 COMO USAR (passo a passo pra rodar no seu computador ou no Claude Code):
 1. Instalar o Python, se ainda não tiver: https://www.python.org
@@ -32,6 +36,7 @@ arquivo é só seu, roda só no seu computador ou no seu ambiente.
 """
 
 import os
+import time
 from datetime import datetime
 from playwright.sync_api import sync_playwright
 import requests
@@ -46,19 +51,67 @@ OPENSKY_ACCESS_KEY = os.environ.get("OPENSKY_ACCESS_KEY", "")   # sua chave de a
 ZAPI_INSTANCE_ID = os.environ.get("ZAPI_INSTANCE_ID", "")       # ID da instância Z-API
 ZAPI_TOKEN = os.environ.get("ZAPI_TOKEN", "")                   # Token da instância Z-API
 ZAPI_CLIENT_TOKEN = os.environ.get("ZAPI_CLIENT_TOKEN", "")     # Client-Token (segurança da conta)
-WHATSAPP_GROUP_ID = os.environ.get("WHATSAPP_GROUP_ID", "")     # ex: "120363xxxxxxxxxx-group"
 
-# Cada busca aceita até 5 destinos de uma vez (igual você faz na tela).
-# Adicione quantos "lotes" de busca quiser na lista abaixo.
-BUSCAS = [
-    {"origem": "GYN", "destinos": ["MCZ", "BPS", "NVT", "REC", "SSA"]},
-    {"origem": "SAO", "destinos": ["MCZ", "FOR", "SSA", "REC", "BPS"]},
-]
+# Cada região manda pro seu próprio grupo de WhatsApp (ID vem de uma
+# variável de ambiente própria — preencha no seu .env local).
+# Cada origem aceita quantos destinos quiser na lista: o robô divide
+# sozinho em lotes de até 5 (limite do formulário do site).
+REGIOES = {
+    "CENTRO-OESTE": {
+        "grupo_id": os.environ.get("ZAPI_GRUPO_CENTRO_OESTE", ""),
+        "rotas": [
+            ("GYN", ["SAO", "RIO", "SSA", "REC", "FOR", "MCZ", "BPS"]),
+            ("BSB", ["RIO", "SAO", "SSA", "REC", "FOR", "MAO"]),
+            ("CGB", ["SAO"]),
+        ],
+    },
+    "SUDESTE": {
+        "grupo_id": os.environ.get("ZAPI_GRUPO_SUDESTE", ""),
+        "rotas": [
+            ("SAO", ["GYN", "BSB", "CNF", "CWB", "FLN", "POA", "SSA", "REC", "FOR", "MCZ", "NAT"]),
+            ("RIO", ["BSB", "GYN", "SSA", "REC"]),
+        ],
+    },
+    "NORDESTE": {
+        "grupo_id": os.environ.get("ZAPI_GRUPO_NORDESTE", ""),
+        "rotas": [
+            ("REC", ["SAO", "RIO", "BSB"]),
+            ("SSA", ["SAO", "RIO", "BSB"]),
+            ("FOR", ["SAO", "RIO"]),
+            ("MCZ", ["SAO", "RIO"]),
+            ("NAT", ["SAO"]),
+            ("AJU", ["SSA"]),
+        ],
+    },
+    "SUL": {
+        "grupo_id": os.environ.get("ZAPI_GRUPO_SUL", ""),
+        "rotas": [
+            ("CWB", ["SAO", "RIO"]),
+            ("FLN", ["SAO", "RIO"]),
+            ("POA", ["SAO", "RIO"]),
+        ],
+    },
+    "NORTE": {
+        "grupo_id": os.environ.get("ZAPI_GRUPO_NORTE", ""),
+        "rotas": [
+            ("MAO", ["BSB", "SAO", "RIO"]),
+            ("BEL", ["SAO", "RIO", "BSB"]),
+            ("PVH", ["BSB", "SAO"]),
+        ],
+    },
+}
 
 # Teto de milhas para o PACOTE COMPLETO (ida + volta somadas).
 # Só entra na mensagem se (milhas da ida + milhas da volta) ficar dentro
 # desse valor — não existe mais um teto separado por trecho.
 TETO_MILHAS_IDA_VOLTA = 35000  # valor definitivo
+
+# Agendamento: de quanto em quanto tempo o robô refaz o ciclo completo
+# (todas as regiões), e em que horário do dia ele deve rodar. Fora desse
+# horário, o robô só fica esperando (não faz buscas nem gasta dados).
+INTERVALO_MINUTOS = 30
+HORA_INICIO = 8   # começa a rodar às 08h
+HORA_FIM = 20     # para de rodar às 20h
 
 
 # ============================================================
@@ -297,19 +350,52 @@ def formatar_mensagem(oportunidades):
     return "\n".join(linhas).rstrip()
 
 
-def enviar_whatsapp(mensagem):
-    """Envia a mensagem pro grupo via Z-API."""
+def enviar_whatsapp(mensagem, grupo_id):
+    """Envia a mensagem pro grupo (da região) via Z-API."""
     url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}/send-text"
     headers = {"Client-Token": ZAPI_CLIENT_TOKEN}
-    payload = {"phone": WHATSAPP_GROUP_ID, "message": mensagem}
+    payload = {"phone": grupo_id, "message": mensagem}
 
     resposta = requests.post(url, json=payload, headers=headers)
     print(f"📤 Envio: {resposta.status_code} - {resposta.text}")
 
 
+def dividir_em_lotes(lista, tamanho=5):
+    """Quebra uma lista de destinos em pedaços de até `tamanho` itens
+    (limite que o formulário do site aceita por busca)."""
+    for i in range(0, len(lista), tamanho):
+        yield lista[i:i + tamanho]
+
+
+def processar_regiao(pagina, nome_regiao, config_regiao):
+    """Busca todas as rotas de uma região e manda uma única mensagem,
+    com todas as oportunidades encontradas, pro grupo daquela região."""
+    oportunidades_regiao = []
+
+    for origem, destinos in config_regiao["rotas"]:
+        for lote in dividir_em_lotes(destinos):
+            print(f"🔍 [{nome_regiao}] {origem} ⇄ {lote}")
+            try:
+                oportunidades_regiao.extend(
+                    buscar_oportunidades_ida_volta(pagina, origem, lote)
+                )
+            except Exception as erro:
+                print(f"⚠️  Erro buscando {origem} ⇄ {lote} ({nome_regiao}): {erro}")
+
+    mensagem = formatar_mensagem(oportunidades_regiao)
+    if mensagem:
+        enviar_whatsapp(mensagem, config_regiao["grupo_id"])
+    else:
+        print(f"Nada dentro do teto pra {nome_regiao} dessa vez.")
+
+
 # ============================================================
 # EXECUÇÃO PRINCIPAL
 # ============================================================
+
+def dentro_do_horario_comercial():
+    return HORA_INICIO <= datetime.now().hour < HORA_FIM
+
 
 def rodar():
     with sync_playwright() as p:
@@ -321,19 +407,20 @@ def rodar():
 
         fazer_login_se_precisar(pagina)
 
-        for busca in BUSCAS:
-            print(f"🔍 Buscando ida e volta: {busca['origem']} ⇄ {busca['destinos']}")
-            oportunidades = buscar_oportunidades_ida_volta(
-                pagina, busca["origem"], busca["destinos"]
-            )
-            mensagem = formatar_mensagem(oportunidades)
+        try:
+            while True:
+                if dentro_do_horario_comercial():
+                    for nome_regiao, config_regiao in REGIOES.items():
+                        processar_regiao(pagina, nome_regiao, config_regiao)
+                else:
+                    print("😴 Fora do horário comercial, aguardando...")
 
-            if mensagem:
-                enviar_whatsapp(mensagem)
-            else:
-                print("Nada dentro do teto dessa vez.")
-
-        navegador.close()
+                print(f"⏳ Aguardando {INTERVALO_MINUTOS} minutos até o próximo ciclo...")
+                time.sleep(INTERVALO_MINUTOS * 60)
+        except KeyboardInterrupt:
+            print("\n🛑 Robô parado. Até mais!")
+        finally:
+            navegador.close()
 
 
 if __name__ == "__main__":
