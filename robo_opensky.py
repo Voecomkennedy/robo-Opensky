@@ -8,12 +8,12 @@ DevTools). Pronto pra testar de ponta a ponta.
 O QUE ESSE ROBÔ FAZ (na ordem):
 1. Abre o site do OpenSky
 2. Se aparecer a tela "ACESSO RESTRITO", digita a chave e desbloqueia
-3. Preenche origem e destinos
-4. Clica em "INICIAR GARIMPAGEM"
-5. Captura os preços que o site encontrou
-6. Filtra só o que está abaixo do teto de milhas que você definir
-7. Monta uma mensagem de WhatsApp
-8. Envia pro grupo via Z-API
+3. Busca a IDA (origem -> destinos) e, pra cada destino, a VOLTA
+   (destino -> origem)
+4. Combina as datas de ida e volta mais baratas dentro do teto de milhas
+   combinado que você definir (ida + volta somadas)
+5. Monta uma mensagem de WhatsApp
+6. Envia pro grupo via Z-API
 
 COMO USAR (passo a passo pra rodar no seu computador ou no Claude Code):
 1. Instalar o Python, se ainda não tiver: https://www.python.org
@@ -54,8 +54,10 @@ BUSCAS = [
     # {"origem": "GYN", "destinos": ["FOR", "JPA", "MAO", "BEL", "THE"]},
 ]
 
-# Só entra na mensagem se a IDA custar até essa quantidade de milhas
-TETO_MILHAS_NACIONAL = 20000
+# Teto de milhas para o PACOTE COMPLETO (ida + volta somadas).
+# Só entra na mensagem se (milhas da ida + milhas da volta) ficar dentro
+# desse valor — não existe mais um teto separado por trecho.
+TETO_MILHAS_IDA_VOLTA = 30000
 
 
 # ============================================================
@@ -77,7 +79,11 @@ def fazer_login_se_precisar(page):
 
 
 def buscar_precos(page, origem, destinos):
-    """Preenche origem/destinos, clica em buscar, e captura o resultado."""
+    """Preenche origem/destinos, clica em buscar, e captura o resultado.
+
+    Serve tanto pra busca de ida (origem -> destinos) quanto de volta
+    (destino -> [origem]) — é só trocar quem entra em cada parâmetro.
+    """
     resultado_capturado = {}
 
     def capturar_resposta(response):
@@ -88,44 +94,115 @@ def buscar_precos(page, origem, destinos):
                 pass
 
     page.on("response", capturar_resposta)
+    try:
+        # Seletores confirmados via DevTools (HTML real do formulário #skyForm):
+        #   <input type="text" id="origin" ...>
+        #   <input type="text" id="destinations" ...>
+        #   <button type="submit" ...>⚡ INICIAR GARIMPAGEM</button>
+        page.locator("#origin").fill(origem)
+        page.locator("#destinations").fill(", ".join(destinos))
 
-    # Seletores confirmados via DevTools (HTML real do formulário #skyForm):
-    #   <input type="text" id="origin" ...>
-    #   <input type="text" id="destinations" ...>
-    #   <button type="submit" ...>⚡ INICIAR GARIMPAGEM</button>
-    page.locator("#origin").fill(origem)
-    page.locator("#destinations").fill(", ".join(destinos))
+        page.locator("#skyForm button[type='submit']").click()
 
-    page.locator("#skyForm button[type='submit']").click()
+        # espera a resposta chegar (até 30 segundos)
+        for _ in range(30):
+            if "dados" in resultado_capturado:
+                break
+            page.wait_for_timeout(1000)
 
-    # espera a resposta chegar (até 30 segundos)
-    for _ in range(30):
-        if "dados" in resultado_capturado:
-            break
-        page.wait_for_timeout(1000)
-
-    return resultado_capturado.get("dados")
+        return resultado_capturado.get("dados")
+    finally:
+        # Sem isso, cada busca extra (ida + uma por destino na volta)
+        # deixaria mais um listener "response" acumulado na mesma página.
+        page.remove_listener("response", capturar_resposta)
 
 
-def filtrar_oportunidades(dados_json):
-    """Pega só as datas de ida com preço abaixo do teto definido."""
-    oportunidades = []
+def agrupar_por_rota(dados_json):
+    """Agrupa os voos retornados pela API por par (origem, destino).
+
+    Funciona tanto pra resposta em lote da ida (1 origem, vários destinos)
+    quanto pra resposta única da volta (1 destino -> origem).
+    """
+    por_rota = {}
     if not dados_json:
-        return oportunidades
+        return por_rota
 
     for rota in dados_json.get("results", []):
         origem = rota["route"]["origin"]
         destino = rota["route"]["destination"]
-        for voo in rota.get("rankings", {}).get("outbound", []):
-            if voo["miles"] <= TETO_MILHAS_NACIONAL:
-                oportunidades.append({
-                    "origem": origem,
-                    "destino": destino,
-                    "data": voo["date"],
-                    "milhas": voo["miles"],
-                })
+        voos = [
+            {"date": voo["date"], "miles": voo["miles"]}
+            for voo in rota.get("rankings", {}).get("outbound", [])
+        ]
+        voos.sort(key=lambda v: v["date"])  # "AAAA-MM-DD" ordena certo como string
+        por_rota[(origem, destino)] = voos
+
+    return por_rota
+
+
+def escolher_melhor_combinacao(voos_ida, voos_volta, teto_total):
+    """Acha a combinação ida+volta mais barata dentro do teto total.
+
+    Regra: qualquer volta com data depois da ida é válida (sem exigir
+    número mínimo/máximo de noites). Em caso de empate no total, fica
+    com a ida mais cedo e depois a volta mais cedo.
+    """
+    melhor = None
+    for ida in voos_ida:
+        for volta in voos_volta:
+            if volta["date"] <= ida["date"]:
+                continue
+            total = ida["miles"] + volta["miles"]
+            if total > teto_total:
+                continue
+            candidato = {
+                "data_ida": ida["date"],
+                "milhas_ida": ida["miles"],
+                "data_volta": volta["date"],
+                "milhas_volta": volta["miles"],
+                "total": total,
+            }
+            if melhor is None or (
+                (candidato["total"], candidato["data_ida"], candidato["data_volta"])
+                < (melhor["total"], melhor["data_ida"], melhor["data_volta"])
+            ):
+                melhor = candidato
+
+    return melhor
+
+
+def buscar_oportunidades_ida_volta(pagina, origem, destinos):
+    """Busca ida (lote) + volta (por destino) e monta a lista de
+    oportunidades ida-e-volta dentro do teto combinado."""
+    oportunidades = []
+
+    dados_ida = buscar_precos(pagina, origem, destinos)
+    rotas_ida = agrupar_por_rota(dados_ida)
+
+    for destino in destinos:
+        voos_ida = rotas_ida.get((origem, destino), [])
+        if not voos_ida:
+            print(f"⚠️  Sem dados de ida para {origem} → {destino}, pulando.")
+            continue
+
+        dados_volta = buscar_precos(pagina, destino, [origem])
+        rotas_volta = agrupar_por_rota(dados_volta)
+        voos_volta = rotas_volta.get((destino, origem), [])
+        if not voos_volta:
+            print(f"⚠️  Sem dados de volta para {destino} → {origem}, pulando.")
+            continue
+
+        combo = escolher_melhor_combinacao(voos_ida, voos_volta, TETO_MILHAS_IDA_VOLTA)
+        if combo:
+            oportunidades.append({"origem": origem, "destino": destino, **combo})
+        else:
+            print(f"Nenhuma combinação dentro do teto para {origem} ⇄ {destino}.")
 
     return oportunidades
+
+
+def _fmt_milhas(valor):
+    return f"{valor:,}".replace(",", ".")
 
 
 def formatar_mensagem(oportunidades):
@@ -133,11 +210,16 @@ def formatar_mensagem(oportunidades):
     if not oportunidades:
         return None
 
-    linhas = ["✈️ *OPORTUNIDADES ENCONTRADAS*", ""]
+    linhas = ["✈️ *OPORTUNIDADES IDA E VOLTA*", ""]
     for op in oportunidades[:10]:  # limita pra não ficar gigante
-        data_formatada = datetime.strptime(op["data"], "%Y-%m-%d").strftime("%d/%m")
-        milhas_fmt = f"{op['milhas']:,}".replace(",", ".")
-        linhas.append(f"{op['origem']} → {op['destino']} | {data_formatada} | {milhas_fmt} milhas")
+        data_ida = datetime.strptime(op["data_ida"], "%Y-%m-%d").strftime("%d/%m")
+        data_volta = datetime.strptime(op["data_volta"], "%Y-%m-%d").strftime("%d/%m")
+        linhas.append(
+            f"{op['origem']} ⇄ {op['destino']} | "
+            f"Ida {data_ida} ({_fmt_milhas(op['milhas_ida'])}) + "
+            f"Volta {data_volta} ({_fmt_milhas(op['milhas_volta'])}) = "
+            f"{_fmt_milhas(op['total'])} milhas"
+        )
 
     return "\n".join(linhas)
 
@@ -167,15 +249,16 @@ def rodar():
         fazer_login_se_precisar(pagina)
 
         for busca in BUSCAS:
-            print(f"🔍 Buscando: {busca['origem']} → {busca['destinos']}")
-            dados = buscar_precos(pagina, busca["origem"], busca["destinos"])
-            oportunidades = filtrar_oportunidades(dados)
+            print(f"🔍 Buscando ida e volta: {busca['origem']} ⇄ {busca['destinos']}")
+            oportunidades = buscar_oportunidades_ida_volta(
+                pagina, busca["origem"], busca["destinos"]
+            )
             mensagem = formatar_mensagem(oportunidades)
 
             if mensagem:
                 enviar_whatsapp(mensagem)
             else:
-                print("Nada abaixo do teto dessa vez.")
+                print("Nada dentro do teto dessa vez.")
 
         navegador.close()
 

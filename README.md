@@ -7,12 +7,10 @@ oportunidades encontradas para um grupo de WhatsApp via Z-API.
 
 1. Abre o site do OpenSky.
 2. Se aparecer a tela "ACESSO RESTRITO", digita a chave e desbloqueia.
-3. Preenche origem e destinos.
-4. Clica em "INICIAR GARIMPAGEM".
-5. Captura os preços encontrados.
-6. Filtra só o que está abaixo do teto de milhas definido.
-7. Monta uma mensagem de WhatsApp.
-8. Envia pro grupo via Z-API.
+3. Busca a ida (origem -> destinos) e, pra cada destino, a volta (destino -> origem).
+4. Combina a ida e a volta mais baratas dentro do teto de milhas combinado (ida + volta somadas).
+5. Monta uma mensagem de WhatsApp.
+6. Envia pro grupo via Z-API.
 
 ## Como usar
 
@@ -26,7 +24,7 @@ oportunidades encontradas para um grupo de WhatsApp via Z-API.
    OpenSky e os dados da sua instância Z-API. Depois exporte essas variáveis
    no ambiente (ou use um pacote como `python-dotenv` para carregá-las
    automaticamente) — nunca deixe a chave escrita direto no arquivo.
-4. Ajuste a lista `BUSCAS` e o `TETO_MILHAS_NACIONAL` em `robo_opensky.py`
+4. Ajuste a lista `BUSCAS` e o `TETO_MILHAS_IDA_VOLTA` em `robo_opensky.py`
    conforme sua necessidade.
 5. Rode:
    ```bash
