@@ -57,7 +57,7 @@ BUSCAS = [
 # Teto de milhas para o PACOTE COMPLETO (ida + volta somadas).
 # Só entra na mensagem se (milhas da ida + milhas da volta) ficar dentro
 # desse valor — não existe mais um teto separado por trecho.
-TETO_MILHAS_IDA_VOLTA = 30000
+TETO_MILHAS_IDA_VOLTA = 35000
 
 
 # ============================================================
