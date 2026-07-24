@@ -114,7 +114,7 @@ TETO_MILHAS_IDA_VOLTA = 35000  # valor definitivo
 # Agendamento: de quanto em quanto tempo o robô refaz o ciclo completo
 # (todas as regiões), e em que horário do dia ele deve rodar. Fora desse
 # horário, o robô só fica esperando (não faz buscas nem gasta dados).
-INTERVALO_MINUTOS = 30
+INTERVALO_MINUTOS = 60
 HORA_INICIO = 8   # começa a rodar às 08h
 HORA_FIM = 20     # para de rodar às 20h
 
@@ -372,9 +372,33 @@ def dividir_em_lotes(lista, tamanho=5):
         yield lista[i:i + tamanho]
 
 
-def processar_regiao(pagina, nome_regiao, config_regiao):
+def chave_oportunidade(op):
+    """Identifica uma oportunidade por rota + datas + total de milhas.
+
+    Mesma rota com as mesmas datas e o mesmo total já foi mandada antes;
+    se qualquer um desses mudar (outras datas, ou valor diferente), conta
+    como uma oportunidade nova.
+    """
+    return (op["origem"], op["destino"], op["data_ida"], op["data_volta"], op["total"])
+
+
+def filtrar_novas(oportunidades, ja_enviadas):
+    """Remove oportunidades que já foram mandadas antes (mesma chave) e
+    registra as novas em `ja_enviadas`, pra não repetir nos próximos ciclos."""
+    novas = []
+    for op in oportunidades:
+        chave = chave_oportunidade(op)
+        if chave in ja_enviadas:
+            continue
+        ja_enviadas.add(chave)
+        novas.append(op)
+    return novas
+
+
+def processar_regiao(pagina, nome_regiao, config_regiao, ja_enviadas):
     """Busca todas as rotas de uma região e manda uma única mensagem,
-    com todas as oportunidades encontradas, pro grupo daquela região."""
+    só com as oportunidades NOVAS (que ainda não foram enviadas), pro
+    grupo daquela região."""
     oportunidades_regiao = []
 
     for origem, destinos in config_regiao["rotas"]:
@@ -387,11 +411,12 @@ def processar_regiao(pagina, nome_regiao, config_regiao):
             except Exception as erro:
                 print(f"⚠️  Erro buscando {origem} ⇄ {lote} ({nome_regiao}): {erro}")
 
-    mensagem = formatar_mensagem(oportunidades_regiao)
+    novas = filtrar_novas(oportunidades_regiao, ja_enviadas)
+    mensagem = formatar_mensagem(novas)
     if mensagem:
         enviar_whatsapp(mensagem, config_regiao["grupo_id"])
     else:
-        print(f"Nada dentro do teto pra {nome_regiao} dessa vez.")
+        print(f"Nada novo dentro do teto pra {nome_regiao} dessa vez.")
 
 
 # ============================================================
@@ -412,11 +437,16 @@ def rodar():
 
         fazer_login_se_precisar(pagina)
 
+        # Guarda o que já foi mandado (rota + datas + total) enquanto o
+        # robô estiver rodando, pra não repetir a mesma oportunidade a
+        # cada ciclo. Reinicia do zero se você parar e rodar de novo.
+        ja_enviadas = set()
+
         try:
             while True:
                 if dentro_do_horario_comercial():
                     for nome_regiao, config_regiao in REGIOES.items():
-                        processar_regiao(pagina, nome_regiao, config_regiao)
+                        processar_regiao(pagina, nome_regiao, config_regiao, ja_enviadas)
                 else:
                     print("😴 Fora do horário comercial, aguardando...")
 
