@@ -52,7 +52,7 @@ WHATSAPP_GROUP_ID = os.environ.get("WHATSAPP_GROUP_ID", "")     # ex: "120363xxx
 # Adicione quantos "lotes" de busca quiser na lista abaixo.
 BUSCAS = [
     {"origem": "GYN", "destinos": ["MCZ", "BPS", "NVT", "REC", "SSA"]},
-    # {"origem": "GYN", "destinos": ["FOR", "JPA", "MAO", "BEL", "THE"]},
+    {"origem": "SAO", "destinos": ["MCZ", "FOR", "SSA", "REC", "BPS"]},
 ]
 
 # Teto de milhas para o PACOTE COMPLETO (ida + volta somadas).
