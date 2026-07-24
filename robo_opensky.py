@@ -196,7 +196,13 @@ def buscar_oportunidades_ida_volta(pagina, origem, destinos):
         if combo:
             oportunidades.append({"origem": origem, "destino": destino, **combo})
         else:
-            print(f"Nenhuma combinação dentro do teto para {origem} ⇄ {destino}.")
+            ida_mais_barata = min(v["miles"] for v in voos_ida)
+            volta_mais_barata = min(v["miles"] for v in voos_volta)
+            print(
+                f"Nenhuma combinação dentro do teto para {origem} ⇄ {destino} "
+                f"(ida mais barata encontrada: {_fmt_milhas(ida_mais_barata)}, "
+                f"volta mais barata encontrada: {_fmt_milhas(volta_mais_barata)})."
+            )
 
     return oportunidades
 
