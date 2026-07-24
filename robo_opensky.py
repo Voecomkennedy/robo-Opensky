@@ -131,7 +131,10 @@ def fazer_login_se_precisar(page):
             print("🔐 Tela de acesso restrito detectada, desbloqueando...")
             campo_chave.fill(OPENSKY_ACCESS_KEY)
             page.get_by_role("button", name="DESBLOQUEAR SISTEMA").click()
-            page.wait_for_timeout(2000)  # espera a tela do sistema carregar
+            # Espera a camada de bloqueio (#authOverlay) sumir de verdade,
+            # em vez de uma espera fixa — ela às vezes demora mais que
+            # 2 segundos pra sumir e fica bloqueando o clique na busca.
+            page.locator("#authOverlay").wait_for(state="hidden", timeout=15000)
     except Exception:
         # já estava desbloqueado, ou a tela não apareceu dessa vez — segue
         pass
