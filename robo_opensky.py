@@ -52,13 +52,18 @@ ZAPI_INSTANCE_ID = os.environ.get("ZAPI_INSTANCE_ID", "")       # ID da instânc
 ZAPI_TOKEN = os.environ.get("ZAPI_TOKEN", "")                   # Token da instância Z-API
 ZAPI_CLIENT_TOKEN = os.environ.get("ZAPI_CLIENT_TOKEN", "")     # Client-Token (segurança da conta)
 
+# Grupo padrão: enquanto você não separar os grupos por região, todo
+# mundo cai aqui (o mesmo grupo único que você já usa hoje).
+WHATSAPP_GRUPO_PADRAO = os.environ.get("WHATSAPP_GROUP_ID", "")
+
 # Cada região manda pro seu próprio grupo de WhatsApp (ID vem de uma
-# variável de ambiente própria — preencha no seu .env local).
+# variável de ambiente própria — preencha no seu .env local). Se a
+# variável da região específica estiver vazia, usa o grupo padrão acima.
 # Cada origem aceita quantos destinos quiser na lista: o robô divide
 # sozinho em lotes de até 5 (limite do formulário do site).
 REGIOES = {
     "CENTRO-OESTE": {
-        "grupo_id": os.environ.get("ZAPI_GRUPO_CENTRO_OESTE", ""),
+        "grupo_id": os.environ.get("ZAPI_GRUPO_CENTRO_OESTE", "") or WHATSAPP_GRUPO_PADRAO,
         "rotas": [
             ("GYN", ["SAO", "RIO", "SSA", "REC", "FOR", "MCZ", "BPS"]),
             ("BSB", ["RIO", "SAO", "SSA", "REC", "FOR", "MAO"]),
@@ -66,14 +71,14 @@ REGIOES = {
         ],
     },
     "SUDESTE": {
-        "grupo_id": os.environ.get("ZAPI_GRUPO_SUDESTE", ""),
+        "grupo_id": os.environ.get("ZAPI_GRUPO_SUDESTE", "") or WHATSAPP_GRUPO_PADRAO,
         "rotas": [
             ("SAO", ["GYN", "BSB", "CNF", "CWB", "FLN", "POA", "SSA", "REC", "FOR", "MCZ", "NAT"]),
             ("RIO", ["BSB", "GYN", "SSA", "REC"]),
         ],
     },
     "NORDESTE": {
-        "grupo_id": os.environ.get("ZAPI_GRUPO_NORDESTE", ""),
+        "grupo_id": os.environ.get("ZAPI_GRUPO_NORDESTE", "") or WHATSAPP_GRUPO_PADRAO,
         "rotas": [
             ("REC", ["SAO", "RIO", "BSB"]),
             ("SSA", ["SAO", "RIO", "BSB"]),
@@ -84,7 +89,7 @@ REGIOES = {
         ],
     },
     "SUL": {
-        "grupo_id": os.environ.get("ZAPI_GRUPO_SUL", ""),
+        "grupo_id": os.environ.get("ZAPI_GRUPO_SUL", "") or WHATSAPP_GRUPO_PADRAO,
         "rotas": [
             ("CWB", ["SAO", "RIO"]),
             ("FLN", ["SAO", "RIO"]),
@@ -92,7 +97,7 @@ REGIOES = {
         ],
     },
     "NORTE": {
-        "grupo_id": os.environ.get("ZAPI_GRUPO_NORTE", ""),
+        "grupo_id": os.environ.get("ZAPI_GRUPO_NORTE", "") or WHATSAPP_GRUPO_PADRAO,
         "rotas": [
             ("MAO", ["BSB", "SAO", "RIO"]),
             ("BEL", ["SAO", "RIO", "BSB"]),

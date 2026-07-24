@@ -18,6 +18,7 @@ No topo de `robo_opensky.py`:
 
 - `REGIOES`: um dicionário por região, cada uma com o `grupo_id` (variável de ambiente do grupo de WhatsApp) e a lista `rotas` de `(origem, [destinos])`. Pode colocar quantos destinos quiser por origem — o robô divide sozinho em lotes de até 5 (limite do site).
 - `INTERVALO_MINUTOS`, `HORA_INICIO`, `HORA_FIM`: controlam de quanto em quanto tempo o ciclo se repete e em qual janela do dia o robô roda (fora dela ele só espera).
+- Enquanto as variáveis `ZAPI_GRUPO_*` de cada região não forem preenchidas, todas as regiões mandam pro mesmo grupo (`WHATSAPP_GROUP_ID`). Preencha a variável de uma região só quando quiser separar o disparo dela pra outro grupo.
 
 ## Como usar
 
@@ -31,7 +32,7 @@ No topo de `robo_opensky.py`:
    OpenSky e os dados da sua instância Z-API. Depois exporte essas variáveis
    no ambiente (ou use um pacote como `python-dotenv` para carregá-las
    automaticamente) — nunca deixe a chave escrita direto no arquivo.
-4. Ajuste a lista `BUSCAS` e o `TETO_MILHAS_IDA_VOLTA` em `robo_opensky.py`
+4. Ajuste `REGIOES` e o `TETO_MILHAS_IDA_VOLTA` em `robo_opensky.py`
    conforme sua necessidade.
 5. Rode:
    ```bash
