@@ -7,8 +7,8 @@ oportunidades encontradas para um grupo de WhatsApp via Z-API.
 
 1. Abre o site do OpenSky.
 2. Se aparecer a tela "ACESSO RESTRITO", digita a chave e desbloqueia.
-3. Busca a ida (origem -> destinos) e, pra cada destino, a volta (destino -> origem).
-4. Combina a ida e a volta mais baratas dentro do teto de milhas combinado (ida + volta somadas).
+3. Busca a ida e a volta juntas numa única busca por lote (o próprio site já devolve os dois sentidos).
+4. Combina a ida e a volta mais baratas dentro do teto de milhas combinado (ida + volta somadas), priorizando os itinerários prontos do site — que já vêm com link direto de reserva quando disponíveis.
 5. Monta uma mensagem de WhatsApp.
 6. Envia pro grupo via Z-API.
 
