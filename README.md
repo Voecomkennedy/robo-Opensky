@@ -28,16 +28,27 @@ No topo de `robo_opensky.py`:
    pip install -r requirements.txt --break-system-packages
    playwright install chromium
    ```
-3. Copie `.env.example` para `.env` e preencha com a sua chave de acesso do
-   OpenSky e os dados da sua instância Z-API. Depois exporte essas variáveis
-   no ambiente (ou use um pacote como `python-dotenv` para carregá-las
-   automaticamente) — nunca deixe a chave escrita direto no arquivo.
+3. Copie `minhas_chaves.sh.example` para `minhas_chaves.sh` e preencha com
+   a sua chave de acesso do OpenSky e os dados da sua instância Z-API —
+   nunca deixe a chave escrita direto no código nem no `.example`.
 4. Ajuste `REGIOES` e o `TETO_MILHAS_IDA_VOLTA` em `robo_opensky.py`
    conforme sua necessidade.
-5. Rode:
-   ```bash
-   python robo_opensky.py
-   ```
+
+### Uso diário
+
+Dê duplo clique em `iniciar.command` (no Finder). Ele entra sozinho na
+pasta certa, carrega suas chaves de `minhas_chaves.sh`, atualiza o código
+(`git pull`) e roda o robô — não precisa abrir o Terminal nem digitar
+nada. Pra parar, clique na janela do Terminal que abriu e aperte
+Control+C.
+
+Se preferir rodar manualmente pelo Terminal:
+```bash
+cd ~/Documents/robo-Opensky
+source minhas_chaves.sh
+git pull
+python3 robo_opensky.py
+```
 
 ## Importante
 

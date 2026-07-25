@@ -1,0 +1,18 @@
+# Copie este arquivo para "minhas_chaves.sh" (sem o .example) e preencha
+# com as suas chaves reais. NUNCA envie o minhas_chaves.sh pra ninguém,
+# nem cole os valores em mensagens — ele já está no .gitignore, então
+# nunca sobe pro GitHub, fica só no seu computador.
+
+export OPENSKY_ACCESS_KEY="sua_chave_aqui"
+export ZAPI_INSTANCE_ID="sua_instancia_aqui"
+export ZAPI_TOKEN="seu_token_aqui"
+export ZAPI_CLIENT_TOKEN="seu_client_token_aqui"
+export WHATSAPP_GROUP_ID="id_do_seu_grupo_aqui"
+
+# Opcional: grupos por região. Enquanto ficarem vazios, todas as regiões
+# usam o WHATSAPP_GROUP_ID acima.
+export ZAPI_GRUPO_CENTRO_OESTE=""
+export ZAPI_GRUPO_SUDESTE=""
+export ZAPI_GRUPO_NORDESTE=""
+export ZAPI_GRUPO_SUL=""
+export ZAPI_GRUPO_NORTE=""
